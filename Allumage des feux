@@ -45,6 +45,10 @@
 
 #include "Board_LED.h"                  // ::Board Support:LED
 
+#include "stm32f4xx_hal.h"              // Keil::Device:STM32Cube HAL:Common
+
+
+
 
 #ifdef _RTE_
 #include "RTE_Components.h"             // Component selection
@@ -93,6 +97,9 @@ uint32_t HAL_GetTick (void) {
 /* Private function prototypes -----------------------------------------------*/
 static void SystemClock_Config(void);
 static void Error_Handler(void);
+static void Configure_GPIO(void);
+static void configure_ADC2_Channel_0(void);
+
 
 extern ARM_DRIVER_SPI Driver_SPI1;
 
@@ -107,6 +114,9 @@ void Init_LED_SPI(void){
 											ARM_SPI_DATA_BITS(8), 1000000);
 	Driver_SPI1.Control(ARM_SPI_CONTROL_SS, ARM_SPI_SS_INACTIVE);
 }
+//https://microcontrollerslab.com/adc-stm32f4-discovery-board-with-hal-adc-driver
+ADC_HandleTypeDef myADC2Handle;
+
 
 /* Private functions ---------------------------------------------------------*/
 /**
@@ -118,7 +128,7 @@ int main(void)
 {
 	char tab[4+nbLed*4+(1+(int)((nbLed-1)/16))];
 	int i, nb_led;
-	
+	int Adc_value;
 
   /* STM32F4xx HAL library initialization:
        - Configure the Flash prefetch, Flash preread and Buffer caches
@@ -130,7 +140,7 @@ int main(void)
        - Low Level Initialization
      */
   HAL_Init();
-
+	
   /* Configure the system clock to 168 MHz */
   SystemClock_Config();
   SystemCoreClockUpdate();
@@ -144,7 +154,10 @@ int main(void)
 	//NVIC_SetPriority(USART2_IRQn,2);		// nécessaire ? (si LCD ?)
 	
 	LED_Initialize ();
-
+	
+	configure_ADC2_Channel_0();
+	Configure_GPIO();
+	
   /* Create thread functions that start executing, 
   Example: osThreadNew(app_main, NULL, NULL); */
 	
@@ -198,9 +211,17 @@ int main(void)
   /* Infinite loop */
   while (1)
   {
-		LED_On(0);
+		LED_Off(0);
+		osDelay(1000);
 		Driver_SPI1.Send(tab,sizeof(tab)/sizeof(tab[0]));
 		
+		HAL_ADC_Start(&myADC2Handle); // start A/D conversion
+		if(HAL_ADC_PollForConversion(&myADC2Handle, osWaitForever) == 0) //conversion complete
+		{
+			Adc_value  = HAL_ADC_GetValue(&myADC2Handle);
+			LED_On(0);
+			osDelay(1000);
+		}
   }
 }
 
@@ -310,6 +331,44 @@ void assert_failed(uint8_t* file, uint32_t line)
 }
 
 #endif
+
+void Configure_GPIO(void)
+{
+	 
+	GPIO_InitTypeDef ADCpin; //create an instance of GPIO_InitTypeDef C struct
+	__HAL_RCC_GPIOA_CLK_ENABLE(); // enable clock to GPIOA
+	ADCpin.Pin = GPIO_PIN_0; // Select pin PA0
+	ADCpin.Mode = GPIO_MODE_ANALOG; // Select Analog Mode
+	ADCpin.Pull = GPIO_NOPULL; // Disable internal pull-up or pull-down resistor
+	HAL_GPIO_Init(GPIOA, &ADCpin); // initialize PA0 as analog input pin
+}
+
+void configure_ADC2_Channel_0(void)
+{
+	
+	ADC_ChannelConfTypeDef Channel_AN0; // create an instance of ADC_ChannelConfTypeDef
+	
+	
+	myADC2Handle.Instance = ADC2; // create an instance of ADC2
+	
+	
+	__HAL_RCC_ADC2_CLK_ENABLE(); // enable clock to ADC2 module
+	myADC2Handle.Init.Resolution = ADC_RESOLUTION_12B; // select 12-bit resolution 
+	myADC2Handle.Init.EOCSelection = ADC_EOC_SINGLE_CONV; //select  single conversion as a end of conversion event
+	myADC2Handle.Init.DataAlign = ADC_DATAALIGN_RIGHT; // set digital output data right justified
+	myADC2Handle.Init.ClockPrescaler =ADC_CLOCK_SYNC_PCLK_DIV8; 
+	HAL_ADC_Init(&myADC2Handle); // initialize AD2 with myADC2Handle configuration settings
+	
+  /*select ADC2 channel */
+	
+	Channel_AN0.Channel = ADC_CHANNEL_0; // select analog channel 0
+	Channel_AN0.Rank = 1; // set rank to 1
+	Channel_AN0.SamplingTime = ADC_SAMPLETIME_15CYCLES; // set sampling time to 15 clock cycles
+	HAL_ADC_ConfigChannel(&myADC2Handle, &Channel_AN0); // select channel_0 for ADC2 module. 
+}
+
+
+
 
 /**
   * @}
