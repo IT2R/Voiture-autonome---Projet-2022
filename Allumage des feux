@@ -128,7 +128,7 @@ int main(void)
 {
 	char tab[4+nbLed*4+(1+(int)((nbLed-1)/16))];
 	int i, nb_led;
-	int Adc_value;
+	uint32_t  Adc_value;
 
   /* STM32F4xx HAL library initialization:
        - Configure the Flash prefetch, Flash preread and Buffer caches
@@ -171,7 +171,7 @@ int main(void)
 	
 	
 	// 4 LED bleues
-		for (nb_led = 0; nb_led <4;nb_led++){
+	for (nb_led = 0; nb_led <4;nb_led++){
 			tab[4+nb_led*4]=0xe3;
 			tab[5+nb_led*4]=0xff;
 			tab[6+nb_led*4]=0x00;
@@ -187,7 +187,7 @@ int main(void)
 			}
 	
 	// 4 LED bleues
-		for (nb_led = 0; nb_led <4;nb_led++){
+	for (nb_led = 0; nb_led <4;nb_led++){
 			tab[36+nb_led*4]=0xe7;
 			tab[37+nb_led*4]=0x00;
 			tab[38+nb_led*4]=0xff;
@@ -195,7 +195,7 @@ int main(void)
 			}
 		
 			// 4 LED bleues
-		for (nb_led = 0; nb_led <4;nb_led++){
+	for (nb_led = 0; nb_led <4;nb_led++){
 			tab[52+nb_led*4]=0xe1;
 			tab[53+nb_led*4]=0xff;
 			tab[54+nb_led*4]=0xff;
@@ -216,7 +216,7 @@ int main(void)
 		Driver_SPI1.Send(tab,sizeof(tab)/sizeof(tab[0]));
 		
 		HAL_ADC_Start(&myADC2Handle); // start A/D conversion
-		if(HAL_ADC_PollForConversion(&myADC2Handle, osWaitForever) == 0) //conversion complete
+		if(HAL_ADC_PollForConversion(&myADC2Handle, osWaitForever) == 0x00U) //conversion complete
 		{
 			Adc_value  = HAL_ADC_GetValue(&myADC2Handle);
 			LED_On(0);
