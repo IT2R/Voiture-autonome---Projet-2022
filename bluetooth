@@ -1,0 +1,89 @@
+#include "Driver_USART.h"               // ::CMSIS Driver:USART
+#include "GLCD_Config.h"                // Keil.MCB1700::Board Support:Graphic LCD
+#include "Driver_SPI.h"                 // ::CMSIS Driver:SPI
+#include "Board_GLCD.h"                 // ::Board Support:Graphic LCD
+#include <stdint.h>
+#include <stdbool.h>
+
+
+
+extern ARM_DRIVER_USART Driver_USART1;
+extern GLCD_FONT GLCD_Font_16x24;
+
+void Init_UART(void){
+	Driver_USART1.Initialize(NULL);
+	Driver_USART1.PowerControl(ARM_POWER_FULL);
+	Driver_USART1.Control(	ARM_USART_MODE_ASYNCHRONOUS |
+							ARM_USART_DATA_BITS_8		|
+							ARM_USART_STOP_BITS_1		|
+							ARM_USART_PARITY_NONE		|
+							ARM_USART_FLOW_CONTROL_NONE,
+							115200);
+	Driver_USART1.Control(ARM_USART_CONTROL_TX,1);
+	Driver_USART1.Control(ARM_USART_CONTROL_RX,1);
+}
+
+void GetBTString(char *ptab,char delimFin)
+{
+	char RxBt;
+	int i;
+	i=0;
+
+	//On remplit le tableau pointé par ptab avec les caractères qui suivent...
+	do
+	{
+		Driver_USART1.Receive(&RxBt,1);
+		while(Driver_USART1.GetTxCount()<1);
+
+		//SI on vient de recevoir de délimiteur de FIN  ...
+		if( RxBt == '*')
+			ptab[i] = '\0';			            //... ALORS on place le caractère NULL dans le tableau => on "cloture" la chaine de caractères...
+		else
+			ptab[i] = RxBt; //... SINON on copie le caractère reçu dans le tableau
+		i++;							//on fait évoluer l'index du tableau
+
+	}while(RxBt != '*');//... Tant que le caractère reçu n'est pas le délimiteur de FIN
+}
+
+int main (void){
+	uint8_t tab[50];
+	char text[1];
+	uint8_t text1[1];
+	char x,y,z;
+	GLCD_Initialize();
+	GLCD_SetFont(&GLCD_Font_16x24);
+	Init_UART();
+	GLCD_ClearScreen ();
+	while (1) 
+	{ 
+		Driver_USART1.Receive(tab,3);
+		while(Driver_USART1.GetRxCount ()<1);
+		x=tab[0];
+		y=tab[1];
+		z=tab[2];
+		sprintf(text, "x=%x",x);
+		GLCD_DrawString(10,100,(char*)text);
+		
+		sprintf(text, " y=%x",y);
+		GLCD_DrawString(120,100,(char*)text);
+		
+			
+		sprintf(text, "z=%x",z);
+		GLCD_DrawString(10,150,(char*)text);
+	}
+	/*
+	while (1)
+	{
+		Driver_USART1.Receive(tab,10);
+		while(Driver_USART1.GetRxCount ()<1);
+		x=tab[0];
+		y=tab[1];
+			GLCD_ClearScreen ();
+			sprintf (text, "x= %d",x);
+			GLCD_DrawString(10,100,text);
+	    sprintf (text1, "y= %d",y);
+			GLCD_DrawString(50,100,text1);
+	}	
+	*/
+	return 0;
+}
