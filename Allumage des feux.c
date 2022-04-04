@@ -58,6 +58,12 @@
 #define nbLed 16
 #define seuil 1000
 
+void LED (void const* argument);
+
+osThreadId ID_LED;
+osThreadDef(LED, osPriorityNormal, 1, 0);
+
+
 #ifdef RTE_CMSIS_RTOS2_RTX5
 /**
   * Override default HAL_GetTick function
@@ -128,13 +134,56 @@ ADC_HandleTypeDef myADC2Handle;
   * @param  None
   * @retval None
   */
-int main(void)
-{
+void LED (void const* argument) {
 	int i;
 	uint32_t  Adc_value;
 	char Adc_value_char[10];
-	char tab[4+nbLed*4+(2+(int)((nbLed-1)/16))], tab0[4+nbLed*4+(1+(int)((nbLed-1)/16))];	
-  /* STM32F4xx HAL library initialization:
+  char tab[4+nbLed*4+(2+(int)((nbLed-1)/16))]/*, tab0[4+nbLed*4+(1+(int)((nbLed-1)/16))]*/;
+	
+	for (i=0;i<4;i++){
+		tab[i] = 0;
+		//tab0[i] = 0;
+	}
+		
+	tab[sizeof(tab)/sizeof(tab[0])-2] = 0;
+	tab[sizeof(tab)/sizeof(tab[0])-1] = 0;
+	
+	while (1)
+  {
+		//osDelay(1000);
+		
+		Driver_SPI1.Send(tab,sizeof(tab)/sizeof(tab[0]));
+		
+		HAL_ADC_Start(&myADC2Handle); // start A/D conversion
+		for(i=0;i<10;i++)
+		ITM_SendChar(Adc_value_char[i]);
+		if(HAL_ADC_PollForConversion(&myADC2Handle, osWaitForever) == 0x00U) //conversion complete
+		{
+			Adc_value  = HAL_ADC_GetValue(&myADC2Handle);
+			if ( Adc_value > seuil)
+			{
+				remplirTabLED(tab,1,15,2,0,0,0);
+
+				Driver_SPI1.Send(tab,sizeof(tab)/sizeof(tab[0]));
+			}
+			else 
+			{
+				remplirTabLED(tab ,1,10,2,127,0,127);
+				 remplirTabLED(tab ,11,5,2,127,127,127);
+				Driver_SPI1.Send(tab,sizeof(tab)/sizeof(tab[0]));
+			}
+			for(i=0;i<10;i++)
+			ITM_SendChar(Adc_value_char[i]);
+			//osDelay(1000);
+		}
+		
+  }
+}
+
+int main(void)
+{
+	
+	/* STM32F4xx HAL library initialization:
        - Configure the Flash prefetch, Flash preread and Buffer caches
        - Systick timer is configured by default as source of time base, but user 
              can eventually implement his proper time base source (a general purpose 
@@ -164,62 +213,26 @@ int main(void)
 	
   /* Create thread functions that start executing, 
   Example: osThreadNew(app_main, NULL, NULL); */
-	
+	ID_LED = osThreadCreate (osThread(LED), NULL);
+	Init_LED_SPI();
+
   /* Start thread execution */
   osKernelStart();
-	Init_LED_SPI();
-	
-	for (i=0;i<4;i++){
-		tab[i] = 0;
-		tab0[i] = 0;
-	}
-	remplirTabLED(tab ,1,4,0,0,0,0);
-	remplirTabLED(tab0,1,4,16,0,255,0);
-		
-	tab[sizeof(tab)/sizeof(tab[0])-2] = 0;
-	tab[sizeof(tab)/sizeof(tab[0])-1] = 0;
 	
 //#endif
-	
   /* Infinite loop */
+	osDelay(osWaitForever);
 			
-  while (1)
-  {
-		//osDelay(1000);
-		
-		Driver_SPI1.Send(tab,sizeof(tab)/sizeof(tab[0]));
-		
-		HAL_ADC_Start(&myADC2Handle); // start A/D conversion
-		for(i=0;i<10;i++)
-		ITM_SendChar(Adc_value_char[i]);
-		if(HAL_ADC_PollForConversion(&myADC2Handle, osWaitForever) == 0x00U) //conversion complete
-		{
-			Adc_value  = HAL_ADC_GetValue(&myADC2Handle);
-			if ( Adc_value > seuil)
-			{
-				Driver_SPI1.Send(tab,sizeof(tab)/sizeof(tab[0]));
-			}
-			else 
-			{
-				remplirTabLED(tab0,1,4,16,0,0,255);
-				Driver_SPI1.Send(tab0,sizeof(tab0)/sizeof(tab0[0]));
-			}
-			for(i=0;i<10;i++)
-			ITM_SendChar(Adc_value_char[i]);
-			//osDelay(1000);
-		}
-		
-  }
 }
 
 void remplirTabLED(char *tab, char rang, char nb_led, unsigned char intensitee, unsigned char blue, unsigned char green , unsigned char red) {
 	char i;
 	for (i = 0; i < nb_led ;i++)
 	{
-			tab[4+rang+i*4 + 4]= (0xe0 | intensitee);
-			tab[4+(rang+1)+i*4 + 4]= blue;
-			tab[4+(rang+2)+i*4 + 4]= green;
-			tab[4+(rang+3)+i*4 +4 ]= red;
+			tab[(rang+i)*4]= (0xe0 | intensitee);
+			tab[1+(rang+i)*4]= blue;
+			tab[2+(rang+i)*4]= green;
+			tab[3+(rang+i)*4]= red;
 	}
 }
 
