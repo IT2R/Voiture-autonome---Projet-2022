@@ -47,8 +47,6 @@
 
 #include "stm32f4xx_hal.h"              // Keil::Device:STM32Cube HAL:Common
 
-#include <stdio.h>
-
 
 #ifdef _RTE_
 #include "RTE_Components.h"             // Component selection
@@ -58,11 +56,14 @@
 #endif
 
 #define nbLed 16
+#define seuil 1000
 
 #ifdef RTE_CMSIS_RTOS2_RTX5
 /**
   * Override default HAL_GetTick function
   */
+	
+	
 uint32_t HAL_GetTick (void) {
   static uint32_t ticks = 0U;
          uint32_t i;
@@ -81,6 +82,9 @@ uint32_t HAL_GetTick (void) {
 }
 
 #endif
+
+
+void remplirTabLED(char *tab, char rang, char nb_led, unsigned char intensitee, unsigned char blue, unsigned char green , unsigned char red);
 
 /** @addtogroup STM32F4xx_HAL_Examples
   * @{
@@ -126,10 +130,10 @@ ADC_HandleTypeDef myADC2Handle;
   */
 int main(void)
 {
-	char tab[4+nbLed*4+(2+(int)((nbLed-1)/16))], tab0[4+nbLed*4+(1+(int)((nbLed-1)/16))];
-	int i, nb_led;
+	int i;
 	uint32_t  Adc_value;
 	char Adc_value_char[10];
+	char tab[4+nbLed*4+(2+(int)((nbLed-1)/16))], tab0[4+nbLed*4+(1+(int)((nbLed-1)/16))];	
   /* STM32F4xx HAL library initialization:
        - Configure the Flash prefetch, Flash preread and Buffer caches
        - Systick timer is configured by default as source of time base, but user 
@@ -169,77 +173,13 @@ int main(void)
 		tab[i] = 0;
 		tab0[i] = 0;
 	}
-	
-	
-	// 4 LED bleues
-	for (nb_led = 0; nb_led <4;nb_led++){
-			tab[4+nb_led*4]=0xe3;
-			tab[5+nb_led*4]=0xff;
-			tab[6+nb_led*4]=0x00;
-			tab[7+nb_led*4]=0x00;
-			}
-		
-			// 4 LED rouges
-	for (nb_led = 0; nb_led <4;nb_led++){
-			tab[20+nb_led*4]=0xff;
-			tab[21+nb_led*4]=0x00;
-			tab[22+nb_led*4]=0x00;
-			tab[23+nb_led*4]=0xff;
-			}
-	
-	// 4 LED bleues
-	for (nb_led = 0; nb_led <4;nb_led++){
-			tab[36+nb_led*4]=0xe7;
-			tab[37+nb_led*4]=0x00;
-			tab[38+nb_led*4]=0xff;
-			tab[39+nb_led*4]=0x00;
-			}
-		
-			// 4 LED bleues
-	for (nb_led = 0; nb_led <4;nb_led++){
-			tab[52+nb_led*4]=0xe1;
-			tab[53+nb_led*4]=0xff;
-			tab[54+nb_led*4]=0xff;
-			tab[55+nb_led*4]=0xff;
-			}
+	remplirTabLED(tab ,1,4,0,0,0,0);
+	remplirTabLED(tab0,1,4,16,0,255,0);
 		
 	tab[sizeof(tab)/sizeof(tab[0])-2] = 0;
 	tab[sizeof(tab)/sizeof(tab[0])-1] = 0;
-	
-	for (nb_led = 0; nb_led <4;nb_led++){
-			tab0[4+nb_led*4]=0xe3;
-			tab0[5+nb_led*4]=0x00;
-			tab0[6+nb_led*4]=0x00;
-			tab0[7+nb_led*4]=0x00;
-			}
-		
-	for (nb_led = 0; nb_led <4;nb_led++){
-			tab0[20+nb_led*4]=0xff;
-			tab0[21+nb_led*4]=0x00;
-			tab0[22+nb_led*4]=0x00;
-			tab0[23+nb_led*4]=0x00;
-			}
-	
-	for (nb_led = 0; nb_led <4;nb_led++){
-			tab0[36+nb_led*4]=0xe7;
-			tab0[37+nb_led*4]=0x00;
-			tab0[38+nb_led*4]=0x00;
-			tab0[39+nb_led*4]=0x00;
-			}
-		
-	for (nb_led = 0; nb_led <4;nb_led++){
-			tab0[52+nb_led*4]=0xe1;
-			tab0[53+nb_led*4]=0x00;
-			tab0[54+nb_led*4]=0x00;
-			tab0[55+nb_led*4]=0x00;
-			}
-		
-	tab[sizeof(tab)/sizeof(tab[0])-2] = 0;
-	tab[sizeof(tab)/sizeof(tab[0])-1] = 0;
-	
 	
 //#endif
-	//osDelay(osWaitForever);
 	
   /* Infinite loop */
 			
@@ -250,18 +190,20 @@ int main(void)
 		Driver_SPI1.Send(tab,sizeof(tab)/sizeof(tab[0]));
 		
 		HAL_ADC_Start(&myADC2Handle); // start A/D conversion
-		sprintf(Adc_value_char, "%i", Adc_value);
 		for(i=0;i<10;i++)
 		ITM_SendChar(Adc_value_char[i]);
 		if(HAL_ADC_PollForConversion(&myADC2Handle, osWaitForever) == 0x00U) //conversion complete
 		{
 			Adc_value  = HAL_ADC_GetValue(&myADC2Handle);
-			if ( Adc_value < 1800)
-//			LED_Off(0);
+			if ( Adc_value > seuil)
+			{
 				Driver_SPI1.Send(tab,sizeof(tab)/sizeof(tab[0]));
+			}
 			else 
+			{
+				remplirTabLED(tab0,1,4,16,0,0,255);
 				Driver_SPI1.Send(tab0,sizeof(tab0)/sizeof(tab0[0]));
-				sprintf(Adc_value_char, "%i", Adc_value);
+			}
 			for(i=0;i<10;i++)
 			ITM_SendChar(Adc_value_char[i]);
 			//osDelay(1000);
@@ -270,14 +212,16 @@ int main(void)
   }
 }
 
-//void remplirTabLED(char *tab, unsigned char blue, unsigned char green , unsigned char red) {
-//	for (char nb_led = 0; nb_led <4;nb_led++){
-//			tab[52+nb_led*4]= (0xe0+);
-//			tab[53+nb_led*4]=0xff;
-//			tab[54+nb_led*4]=0xff;
-//			tab[55+nb_led*4]=0xff;
-//			}
-//}
+void remplirTabLED(char *tab, char rang, char nb_led, unsigned char intensitee, unsigned char blue, unsigned char green , unsigned char red) {
+	char i;
+	for (i = 0; i < nb_led ;i++)
+	{
+			tab[4+rang+i*4 + 4]= (0xe0 | intensitee);
+			tab[4+(rang+1)+i*4 + 4]= blue;
+			tab[4+(rang+2)+i*4 + 4]= green;
+			tab[4+(rang+3)+i*4 +4 ]= red;
+	}
+}
 
 /**
   * @brief  System Clock Configuration
