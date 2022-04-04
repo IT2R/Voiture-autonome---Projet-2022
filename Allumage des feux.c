@@ -47,7 +47,7 @@
 
 #include "stm32f4xx_hal.h"              // Keil::Device:STM32Cube HAL:Common
 
-
+#include <stdio.h>
 
 
 #ifdef _RTE_
@@ -126,10 +126,10 @@ ADC_HandleTypeDef myADC2Handle;
   */
 int main(void)
 {
-	char tab[4+nbLed*4+(1+(int)((nbLed-1)/16))];
+	char tab[4+nbLed*4+(2+(int)((nbLed-1)/16))], tab0[4+nbLed*4+(1+(int)((nbLed-1)/16))];
 	int i, nb_led;
 	uint32_t  Adc_value;
-
+	char Adc_value_char[10];
   /* STM32F4xx HAL library initialization:
        - Configure the Flash prefetch, Flash preread and Buffer caches
        - Systick timer is configured by default as source of time base, but user 
@@ -167,6 +167,7 @@ int main(void)
 	
 	for (i=0;i<4;i++){
 		tab[i] = 0;
+		tab0[i] = 0;
 	}
 	
 	
@@ -205,27 +206,78 @@ int main(void)
 	tab[sizeof(tab)/sizeof(tab[0])-2] = 0;
 	tab[sizeof(tab)/sizeof(tab[0])-1] = 0;
 	
+	for (nb_led = 0; nb_led <4;nb_led++){
+			tab0[4+nb_led*4]=0xe3;
+			tab0[5+nb_led*4]=0x00;
+			tab0[6+nb_led*4]=0x00;
+			tab0[7+nb_led*4]=0x00;
+			}
+		
+	for (nb_led = 0; nb_led <4;nb_led++){
+			tab0[20+nb_led*4]=0xff;
+			tab0[21+nb_led*4]=0x00;
+			tab0[22+nb_led*4]=0x00;
+			tab0[23+nb_led*4]=0x00;
+			}
+	
+	for (nb_led = 0; nb_led <4;nb_led++){
+			tab0[36+nb_led*4]=0xe7;
+			tab0[37+nb_led*4]=0x00;
+			tab0[38+nb_led*4]=0x00;
+			tab0[39+nb_led*4]=0x00;
+			}
+		
+	for (nb_led = 0; nb_led <4;nb_led++){
+			tab0[52+nb_led*4]=0xe1;
+			tab0[53+nb_led*4]=0x00;
+			tab0[54+nb_led*4]=0x00;
+			tab0[55+nb_led*4]=0x00;
+			}
+		
+	tab[sizeof(tab)/sizeof(tab[0])-2] = 0;
+	tab[sizeof(tab)/sizeof(tab[0])-1] = 0;
+	
+	
 //#endif
 	//osDelay(osWaitForever);
 	
   /* Infinite loop */
+			
   while (1)
   {
-		LED_Off(0);
-		osDelay(1000);
+		//osDelay(1000);
+		
 		Driver_SPI1.Send(tab,sizeof(tab)/sizeof(tab[0]));
 		
 		HAL_ADC_Start(&myADC2Handle); // start A/D conversion
+		sprintf(Adc_value_char, "%i", Adc_value);
+		for(i=0;i<10;i++)
+		ITM_SendChar(Adc_value_char[i]);
 		if(HAL_ADC_PollForConversion(&myADC2Handle, osWaitForever) == 0x00U) //conversion complete
 		{
 			Adc_value  = HAL_ADC_GetValue(&myADC2Handle);
-			LED_On(0);
-			osDelay(1000);
+			if ( Adc_value < 1800)
+//			LED_Off(0);
+				Driver_SPI1.Send(tab,sizeof(tab)/sizeof(tab[0]));
+			else 
+				Driver_SPI1.Send(tab0,sizeof(tab0)/sizeof(tab0[0]));
+				sprintf(Adc_value_char, "%i", Adc_value);
+			for(i=0;i<10;i++)
+			ITM_SendChar(Adc_value_char[i]);
+			//osDelay(1000);
 		}
+		
   }
 }
 
-
+//void remplirTabLED(char *tab, unsigned char blue, unsigned char green , unsigned char red) {
+//	for (char nb_led = 0; nb_led <4;nb_led++){
+//			tab[52+nb_led*4]= (0xe0+);
+//			tab[53+nb_led*4]=0xff;
+//			tab[54+nb_led*4]=0xff;
+//			tab[55+nb_led*4]=0xff;
+//			}
+//}
 
 /**
   * @brief  System Clock Configuration
