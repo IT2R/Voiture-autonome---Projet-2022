@@ -55,14 +55,22 @@
 #include "cmsis_os2.h"                  // ::CMSIS:RTOS2
 #endif
 
-#define nbLed 16
+#define nbLed 4
 #define seuil 1000
 
+#define clignotantDroite 0x01
+#define clignotantGauche 0x02
+
+
 void LED (void const* argument);
+void Clignotant(void const* argument);
+
 
 osThreadId ID_LED;
 osThreadDef(LED, osPriorityNormal, 1, 0);
 
+osThreadId ID_Clignotant;
+osThreadDef(Clignotant, osPriorityNormal, 1, 0);
 
 #ifdef RTE_CMSIS_RTOS2_RTX5
 /**
@@ -90,7 +98,7 @@ uint32_t HAL_GetTick (void) {
 #endif
 
 
-void remplirTabLED(char *tab, char rang, char nb_led, unsigned char intensitee, unsigned char blue, unsigned char green , unsigned char red);
+void remplirTabLED(char *tab, char rang, char nb_led, unsigned char intensitee, unsigned char red, unsigned char green , unsigned char blue);
 
 /** @addtogroup STM32F4xx_HAL_Examples
   * @{
@@ -168,8 +176,8 @@ void LED (void const* argument) {
 			}
 			else 
 			{
-				remplirTabLED(tab ,1,10,2,127,0,127);
-				 remplirTabLED(tab ,11,5,2,127,127,127);
+				remplirTabLED(tab ,1,20,2,0,0,127);
+				//remplirTabLED(tab ,10,5,2,127,127,127);
 				Driver_SPI1.Send(tab,sizeof(tab)/sizeof(tab[0]));
 			}
 			for(i=0;i<10;i++)
@@ -180,9 +188,50 @@ void LED (void const* argument) {
   }
 }
 
+void Clignotant (void const * argument)
+{
+	//ARM_CAN_MSG_INFO                rx_msg_info;
+	char nb_data, i;
+	osEvent event;
+	
+	char tab[4+nbLed*4+(2+(int)((nbLed-1)/16))]/*, tab0[4+nbLed*4+(1+(int)((nbLed-1)/16))]*/;
+	LED_On(0);
+	for (i=0;i<4;i++){
+		tab[i] = 0;
+	}
+		
+	tab[sizeof(tab)/sizeof(tab[0])-2] = 0;
+	tab[sizeof(tab)/sizeof(tab[0])-1] = 0;
+	nb_data = clignotantGauche;
+	while(1)
+	{
+		LED_On(1);
+		//event = osSignalWait(0x0001,osWaitForever);
+		//Driver_CAN2.MessageRead(0, &rx_msg_info, data_buf, 8);
+		//nb_data = rx_msg_info.dlc
+		if (nb_data == clignotantDroite)
+		{
+			remplirTabLED(tab,7,6,4,0,0,127);
+			osDelay(750);
+			remplirTabLED(tab,7,6,0,0,0,0);
+			osDelay(750);
+		}
+		else if (nb_data == clignotantGauche)
+		{
+			remplirTabLED(tab,1,4,4,127,0,0);
+			Driver_SPI1.Send(tab,sizeof(tab)/sizeof(tab[0]));
+			osDelay(750);
+			LED_On(2);
+			remplirTabLED(tab,1,4,4,0,0,0);
+			Driver_SPI1.Send(tab,sizeof(tab)/sizeof(tab[0]));
+			osDelay(600);
+			LED_On(3);
+		}
+	}
+}
+
 int main(void)
 {
-	
 	/* STM32F4xx HAL library initialization:
        - Configure the Flash prefetch, Flash preread and Buffer caches
        - Systick timer is configured by default as source of time base, but user 
@@ -213,19 +262,22 @@ int main(void)
 	
   /* Create thread functions that start executing, 
   Example: osThreadNew(app_main, NULL, NULL); */
-	ID_LED = osThreadCreate (osThread(LED), NULL);
+	//ID_LED = osThreadCreate (osThread(LED), NULL);
+	ID_Clignotant = osThreadCreate(osThread(Clignotant),NULL);
 	Init_LED_SPI();
 
   /* Start thread execution */
-  osKernelStart();
+  
 	
+	
+	osKernelStart();
 //#endif
   /* Infinite loop */
 	osDelay(osWaitForever);
 			
 }
 
-void remplirTabLED(char *tab, char rang, char nb_led, unsigned char intensitee, unsigned char blue, unsigned char green , unsigned char red) {
+void remplirTabLED(char *tab, char rang, char nb_led, unsigned char intensitee, unsigned char red, unsigned char green , unsigned char blue) {
 	char i;
 	for (i = 0; i < nb_led ;i++)
 	{
