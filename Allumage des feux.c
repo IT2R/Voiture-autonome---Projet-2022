@@ -55,11 +55,13 @@
 #include "cmsis_os2.h"                  // ::CMSIS:RTOS2
 #endif
 
-#define nbLed 4
-#define seuil 1000
+#define nbLed 16
+#define seuil 2000
 
 #define clignotantDroite 0x01
 #define clignotantGauche 0x02
+
+char Data_LED[4+nbLed*4+(2+(int)((nbLed-1)/16))];
 
 
 void LED (void const* argument);
@@ -146,21 +148,20 @@ void LED (void const* argument) {
 	int i;
 	uint32_t  Adc_value;
 	char Adc_value_char[10];
-  char tab[4+nbLed*4+(2+(int)((nbLed-1)/16))]/*, tab0[4+nbLed*4+(1+(int)((nbLed-1)/16))]*/;
 	
 	for (i=0;i<4;i++){
-		tab[i] = 0;
-		//tab0[i] = 0;
+		Data_LED[i] = 0;
 	}
 		
-	tab[sizeof(tab)/sizeof(tab[0])-2] = 0;
-	tab[sizeof(tab)/sizeof(tab[0])-1] = 0;
+	Data_LED[sizeof(Data_LED)/sizeof(Data_LED[0])-2] = 0;
+	Data_LED[sizeof(Data_LED)/sizeof(Data_LED[0])-1] = 0;
 	
+	remplirTabLED(Data_LED,1,nbLed,2,0,0,0);
+  Driver_SPI1.Send(Data_LED,sizeof(Data_LED)/sizeof(Data_LED[0]));
 	while (1)
   {
 		//osDelay(1000);
-		
-		Driver_SPI1.Send(tab,sizeof(tab)/sizeof(tab[0]));
+		Driver_SPI1.Send(Data_LED,sizeof(Data_LED)/sizeof(Data_LED[0]));
 		
 		HAL_ADC_Start(&myADC2Handle); // start A/D conversion
 		for(i=0;i<10;i++)
@@ -170,19 +171,27 @@ void LED (void const* argument) {
 			Adc_value  = HAL_ADC_GetValue(&myADC2Handle);
 			if ( Adc_value > seuil)
 			{
-				remplirTabLED(tab,1,15,2,0,0,0);
+				remplirTabLED(Data_LED,1,4,2,0,0,0);
+				remplirTabLED(Data_LED,9,4,2,0,0,0);
 
-				Driver_SPI1.Send(tab,sizeof(tab)/sizeof(tab[0]));
+				Driver_SPI1.Send(Data_LED,sizeof(Data_LED)/sizeof(Data_LED[0]));
 			}
 			else 
 			{
-				remplirTabLED(tab ,1,20,2,0,0,127);
-				//remplirTabLED(tab ,10,5,2,127,127,127);
-				Driver_SPI1.Send(tab,sizeof(tab)/sizeof(tab[0]));
+				remplirTabLED(Data_LED ,1,4,8,127,127,127);
+				remplirTabLED(Data_LED ,9,4,8,127,127,127);
+				Driver_SPI1.Send(Data_LED,sizeof(Data_LED)/sizeof(Data_LED[0]));
 			}
+				
+			/*while(Driver_SPI1.GetStatus != 0)
+			{
+				ITM_SendChar( (char) Driver_SPI1.GetStatus);
+				osDelay(100);
+			}*/
+			
 			for(i=0;i<10;i++)
 			ITM_SendChar(Adc_value_char[i]);
-			//osDelay(1000);
+			//osDelay(500);
 		}
 		
   }
@@ -192,17 +201,18 @@ void Clignotant (void const * argument)
 {
 	//ARM_CAN_MSG_INFO                rx_msg_info;
 	char nb_data, i;
-	osEvent event;
+//	osEvent event;
 	
-	char tab[4+nbLed*4+(2+(int)((nbLed-1)/16))]/*, tab0[4+nbLed*4+(1+(int)((nbLed-1)/16))]*/;
 	LED_On(0);
 	for (i=0;i<4;i++){
-		tab[i] = 0;
+		Data_LED[i] = 0;
 	}
 		
-	tab[sizeof(tab)/sizeof(tab[0])-2] = 0;
-	tab[sizeof(tab)/sizeof(tab[0])-1] = 0;
+	Data_LED[sizeof(Data_LED)/sizeof(Data_LED[0])-2] = 0;
+	Data_LED[sizeof(Data_LED)/sizeof(Data_LED[0])-1] = 0;
 	nb_data = clignotantGauche;
+	
+
 	while(1)
 	{
 		LED_On(1);
@@ -211,19 +221,19 @@ void Clignotant (void const * argument)
 		//nb_data = rx_msg_info.dlc
 		if (nb_data == clignotantDroite)
 		{
-			remplirTabLED(tab,7,6,4,0,0,127);
+			remplirTabLED(Data_LED,7,6,4,0,0,127);
 			osDelay(750);
-			remplirTabLED(tab,7,6,0,0,0,0);
+			remplirTabLED(Data_LED,7,6,0,0,0,0);
 			osDelay(750);
 		}
 		else if (nb_data == clignotantGauche)
 		{
-			remplirTabLED(tab,1,4,4,127,0,0);
-			Driver_SPI1.Send(tab,sizeof(tab)/sizeof(tab[0]));
+			remplirTabLED(Data_LED,5,4,4,127,0,0);
+			Driver_SPI1.Send(Data_LED,sizeof(Data_LED)/sizeof(Data_LED[0]));
 			osDelay(750);
 			LED_On(2);
-			remplirTabLED(tab,1,4,4,0,0,0);
-			Driver_SPI1.Send(tab,sizeof(tab)/sizeof(tab[0]));
+			remplirTabLED(Data_LED,5,4,4,0,0,0);
+			Driver_SPI1.Send(Data_LED,sizeof(Data_LED)/sizeof(Data_LED[0]));
 			osDelay(600);
 			LED_On(3);
 		}
@@ -262,7 +272,7 @@ int main(void)
 	
   /* Create thread functions that start executing, 
   Example: osThreadNew(app_main, NULL, NULL); */
-	//ID_LED = osThreadCreate (osThread(LED), NULL);
+	ID_LED = osThreadCreate (osThread(LED), NULL);
 	ID_Clignotant = osThreadCreate(osThread(Clignotant),NULL);
 	Init_LED_SPI();
 
@@ -272,7 +282,7 @@ int main(void)
 	
 	osKernelStart();
 //#endif
-  /* Infinite loop */
+/* Infinite loop */
 	osDelay(osWaitForever);
 			
 }
