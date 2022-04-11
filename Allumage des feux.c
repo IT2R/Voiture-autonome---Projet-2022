@@ -55,24 +55,39 @@
 #include "cmsis_os2.h"                  // ::CMSIS:RTOS2
 #endif
 
+struct message
+{
+	char* pointeur;
+	
+};
+struct message bal;
+
 #define nbLed 16
 #define seuil 2000
 
+#define clignotantOff    0x00
 #define clignotantDroite 0x01
 #define clignotantGauche 0x02
+#define clignotantRecule 0x03
 
 char Data_LED[4+nbLed*4+(2+(int)((nbLed-1)/16))];
 
 
 void LED (void const* argument);
 void Clignotant(void const* argument);
+void Send_Data(void const* argument);
 
+osThreadId ID_Send_Data;
+osThreadDef(Send_Data, osPriorityNormal, 1, 0);
 
 osThreadId ID_LED;
 osThreadDef(LED, osPriorityNormal, 1, 0);
 
 osThreadId ID_Clignotant;
 osThreadDef(Clignotant, osPriorityNormal, 1, 0);
+
+osMailQId  ID_BAL ;
+osMailQDef (Data, 5, bal.pointeur);
 
 #ifdef RTE_CMSIS_RTOS2_RTX5
 /**
@@ -118,7 +133,7 @@ void remplirTabLED(char *tab, char rang, char nb_led, unsigned char intensitee, 
 static void SystemClock_Config(void);
 static void Error_Handler(void);
 static void Configure_GPIO(void);
-static void configure_ADC2_Channel_0(void);
+static void configure_ADC2_Channel_0(ADC_HandleTypeDef myADC2Handle);
 
 
 extern ARM_DRIVER_SPI Driver_SPI1;
@@ -135,7 +150,6 @@ void Init_LED_SPI(void){
 	Driver_SPI1.Control(ARM_SPI_CONTROL_SS, ARM_SPI_SS_INACTIVE);
 }
 //https://microcontrollerslab.com/adc-stm32f4-discovery-board-with-hal-adc-driver
-ADC_HandleTypeDef myADC2Handle;
 
 
 /* Private functions ---------------------------------------------------------*/
@@ -144,10 +158,22 @@ ADC_HandleTypeDef myADC2Handle;
   * @param  None
   * @retval None
   */
+
+void Send_Data(void const* argument) {
+	
+	while (1) {
+		
+	}
+}
+
 void LED (void const* argument) {
 	int i;
 	uint32_t  Adc_value;
 	char Adc_value_char[10];
+	ADC_HandleTypeDef myADC2Handle;
+
+	
+	configure_ADC2_Channel_0(myADC2Handle);
 	
 	for (i=0;i<4;i++){
 		Data_LED[i] = 0;
@@ -183,15 +209,8 @@ void LED (void const* argument) {
 				Driver_SPI1.Send(Data_LED,sizeof(Data_LED)/sizeof(Data_LED[0]));
 			}
 				
-			/*while(Driver_SPI1.GetStatus != 0)
-			{
-				ITM_SendChar( (char) Driver_SPI1.GetStatus);
-				osDelay(100);
-			}*/
-			
-			for(i=0;i<10;i++)
-			ITM_SendChar(Adc_value_char[i]);
-			//osDelay(500);
+			/*for(i=0;i<10;i++)
+			ITM_SendChar(Adc_value_char[i]);*/
 		}
 		
   }
@@ -199,9 +218,7 @@ void LED (void const* argument) {
 
 void Clignotant (void const * argument)
 {
-	//ARM_CAN_MSG_INFO                rx_msg_info;
 	char nb_data, i;
-//	osEvent event;
 	
 	LED_On(0);
 	for (i=0;i<4;i++){
@@ -215,27 +232,37 @@ void Clignotant (void const * argument)
 
 	while(1)
 	{
-		LED_On(1);
-		//event = osSignalWait(0x0001,osWaitForever);
-		//Driver_CAN2.MessageRead(0, &rx_msg_info, data_buf, 8);
-		//nb_data = rx_msg_info.dlc
+		//LED_On(1);
 		if (nb_data == clignotantDroite)
 		{
 			remplirTabLED(Data_LED,7,6,4,0,0,127);
+			Driver_SPI1.Send(Data_LED,sizeof(Data_LED)/sizeof(Data_LED[0]));
 			osDelay(750);
 			remplirTabLED(Data_LED,7,6,0,0,0,0);
-			osDelay(750);
+			Driver_SPI1.Send(Data_LED,sizeof(Data_LED)/sizeof(Data_LED[0]));
+			osDelay(600);
 		}
 		else if (nb_data == clignotantGauche)
 		{
 			remplirTabLED(Data_LED,5,4,4,127,0,0);
 			Driver_SPI1.Send(Data_LED,sizeof(Data_LED)/sizeof(Data_LED[0]));
 			osDelay(750);
-			LED_On(2);
+			//LED_On(2);
 			remplirTabLED(Data_LED,5,4,4,0,0,0);
 			Driver_SPI1.Send(Data_LED,sizeof(Data_LED)/sizeof(Data_LED[0]));
 			osDelay(600);
-			LED_On(3);
+			//LED_On(3);
+		}
+		else if (nb_data == clignotantRecule)
+		{
+			remplirTabLED(Data_LED,5,4,4,127,0,0);
+			remplirTabLED(Data_LED,7,6,4,0,0,127);
+			Driver_SPI1.Send(Data_LED,sizeof(Data_LED)/sizeof(Data_LED[0]));
+			osDelay(750);
+			remplirTabLED(Data_LED,5,4,4,0,0,0);
+			remplirTabLED(Data_LED,7,6,0,0,0,0);
+			Driver_SPI1.Send(Data_LED,sizeof(Data_LED)/sizeof(Data_LED[0]));
+			osDelay(600);
 		}
 	}
 }
@@ -267,13 +294,13 @@ int main(void)
 	
 	LED_Initialize ();
 	
-	configure_ADC2_Channel_0();
 	Configure_GPIO();
 	
   /* Create thread functions that start executing, 
   Example: osThreadNew(app_main, NULL, NULL); */
 	ID_LED = osThreadCreate (osThread(LED), NULL);
 	ID_Clignotant = osThreadCreate(osThread(Clignotant),NULL);
+	ID_BAL = osMailCreate(osMailQ(BAL),NULL) ;
 	Init_LED_SPI();
 
   /* Start thread execution */
@@ -414,7 +441,7 @@ void Configure_GPIO(void)
 	HAL_GPIO_Init(GPIOA, &ADCpin); // initialize PA0 as analog input pin
 }
 
-void configure_ADC2_Channel_0(void)
+void configure_ADC2_Channel_0(ADC_HandleTypeDef myADC2Handle)
 {
 	
 	ADC_ChannelConfTypeDef Channel_AN0; // create an instance of ADC_ChannelConfTypeDef
