@@ -166,7 +166,7 @@ void LED (void const* argument) {
 		HAL_ADC_Start(&myADC2Handle); // start A/D conversion
 		for(i=0;i<10;i++)
 		ITM_SendChar(Adc_value_char[i]);
-		if(HAL_ADC_PollForConversion(&myADC2Handle, 100) == 0x00U) //conversion complete
+		if(HAL_ADC_PollForConversion(&myADC2Handle, osWaitForever) == 0x00U) //conversion complete
 		{
 			Adc_value  = HAL_ADC_GetValue(&myADC2Handle);
 			if ( Adc_value > seuil)
