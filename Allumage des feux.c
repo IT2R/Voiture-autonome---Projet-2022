@@ -118,7 +118,7 @@ void remplirTabLED(char *tab, char rang, char nb_led, unsigned char intensitee, 
 static void SystemClock_Config(void);
 static void Error_Handler(void);
 static void Configure_GPIO(void);
-static void configure_ADC2_Channel_0(void);
+static void configure_ADC2_Channel_1(void);
 
 
 extern ARM_DRIVER_SPI Driver_SPI1;
@@ -166,11 +166,12 @@ void LED (void const* argument) {
 		HAL_ADC_Start(&myADC2Handle); // start A/D conversion
 		for(i=0;i<10;i++)
 		ITM_SendChar(Adc_value_char[i]);
-		if(HAL_ADC_PollForConversion(&myADC2Handle, osWaitForever) == 0x00U) //conversion complete
+		if(HAL_ADC_PollForConversion(&myADC2Handle, 100) == 0x00U) //conversion complete
 		{
 			Adc_value  = HAL_ADC_GetValue(&myADC2Handle);
 			if ( Adc_value > seuil)
 			{
+				LED_On(0);
 				remplirTabLED(Data_LED,1,4,2,0,0,0);
 				remplirTabLED(Data_LED,9,4,2,0,0,0);
 
@@ -178,6 +179,7 @@ void LED (void const* argument) {
 			}
 			else 
 			{
+				LED_Off(0);
 				remplirTabLED(Data_LED ,1,4,8,127,127,127);
 				remplirTabLED(Data_LED ,9,4,8,127,127,127);
 				Driver_SPI1.Send(Data_LED,sizeof(Data_LED)/sizeof(Data_LED[0]));
@@ -252,7 +254,6 @@ int main(void)
        - Low Level Initialization
      */
   HAL_Init();
-	
   /* Configure the system clock to 168 MHz */
   SystemClock_Config();
   SystemCoreClockUpdate();
@@ -266,16 +267,15 @@ int main(void)
 	//NVIC_SetPriority(USART2_IRQn,2);		// nécessaire ? (si LCD ?)
 	
 	LED_Initialize ();
-	
-	configure_ADC2_Channel_0();
+
+	configure_ADC2_Channel_1();
 	Configure_GPIO();
-	
   /* Create thread functions that start executing, 
   Example: osThreadNew(app_main, NULL, NULL); */
 	ID_LED = osThreadCreate (osThread(LED), NULL);
 	ID_Clignotant = osThreadCreate(osThread(Clignotant),NULL);
-	Init_LED_SPI();
 
+	Init_LED_SPI();
   /* Start thread execution */
   
 	
@@ -408,17 +408,16 @@ void Configure_GPIO(void)
 	 
 	GPIO_InitTypeDef ADCpin; //create an instance of GPIO_InitTypeDef C struct
 	__HAL_RCC_GPIOA_CLK_ENABLE(); // enable clock to GPIOA
-	ADCpin.Pin = GPIO_PIN_0; // Select pin PA0
+	ADCpin.Pin = GPIO_PIN_1; // Select pin PA0
 	ADCpin.Mode = GPIO_MODE_ANALOG; // Select Analog Mode
 	ADCpin.Pull = GPIO_NOPULL; // Disable internal pull-up or pull-down resistor
 	HAL_GPIO_Init(GPIOA, &ADCpin); // initialize PA0 as analog input pin
 }
 
-void configure_ADC2_Channel_0(void)
+void configure_ADC2_Channel_1(void)
 {
 	
-	ADC_ChannelConfTypeDef Channel_AN0; // create an instance of ADC_ChannelConfTypeDef
-	
+	ADC_ChannelConfTypeDef Channel_AN1; // create an instance of ADC_ChannelConfTypeDef
 	
 	myADC2Handle.Instance = ADC2; // create an instance of ADC2
 	
@@ -432,10 +431,10 @@ void configure_ADC2_Channel_0(void)
 	
   /*select ADC2 channel */
 	
-	Channel_AN0.Channel = ADC_CHANNEL_0; // select analog channel 0
-	Channel_AN0.Rank = 1; // set rank to 1
-	Channel_AN0.SamplingTime = ADC_SAMPLETIME_15CYCLES; // set sampling time to 15 clock cycles
-	HAL_ADC_ConfigChannel(&myADC2Handle, &Channel_AN0); // select channel_0 for ADC2 module. 
+	Channel_AN1.Channel = ADC_CHANNEL_1; // select analog channel 0
+	Channel_AN1.Rank = 1; // set rank to 1
+	Channel_AN1.SamplingTime = ADC_SAMPLETIME_15CYCLES; // set sampling time to 15 clock cycles
+	HAL_ADC_ConfigChannel(&myADC2Handle, &Channel_AN1); // select channel_0 for ADC2 module. 
 }
 
 
