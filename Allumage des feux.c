@@ -223,18 +223,20 @@ void Clignotant (void const * argument)
 		//nb_data = rx_msg_info.dlc
 		if (nb_data == clignotantDroite)
 		{
-			remplirTabLED(Data_LED,7,6,4,0,0,127);
+			remplirTabLED(Data_LED,13+6,6,4,0,0,127);
+			Driver_SPI1.Send(Data_LED,sizeof(Data_LED)/sizeof(Data_LED[0]));
 			osDelay(750);
-			remplirTabLED(Data_LED,7,6,0,0,0,0);
-			osDelay(750);
+			remplirTabLED(Data_LED,13+6,6,0,0,0,0);
+			Driver_SPI1.Send(Data_LED,sizeof(Data_LED)/sizeof(Data_LED[0]));
+			osDelay(600);
 		}
 		else if (nb_data == clignotantGauche)
 		{
-			remplirTabLED(Data_LED,5,4,4,127,0,0);
+			remplirTabLED(Data_LED,5+6,4,4,127,0,0);
 			Driver_SPI1.Send(Data_LED,sizeof(Data_LED)/sizeof(Data_LED[0]));
 			osDelay(750);
 			LED_On(2);
-			remplirTabLED(Data_LED,5,4,4,0,0,0);
+			remplirTabLED(Data_LED,5+6,4,4,0,0,0);
 			Driver_SPI1.Send(Data_LED,sizeof(Data_LED)/sizeof(Data_LED[0]));
 			osDelay(600);
 			LED_On(3);
