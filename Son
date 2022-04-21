@@ -42,6 +42,7 @@
 #include "cmsis_os.h"                   // ARM::CMSIS:RTOS:Keil RTX
 
 #include "Driver_USART.h"               // ::CMSIS Driver:USART
+#include "Driver_CAN.h"                 // ::CMSIS Driver:CAN
 
 #include "Board_LED.h"                  // ::Board Support:LED
 
@@ -87,42 +88,87 @@ uint32_t HAL_GetTick (void) {
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
+#define cle 0x5F8
+#define telemetre 0x0200
+#define clignotant 0x0400
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
+
 /* Private function prototypes -----------------------------------------------*/
 static void SystemClock_Config(void);
 static void Error_Handler(void);
+void CallbackUART (uint32_t event);
+//void CallbackCAN(uint32_t obj_idx, uint32_t event);
+extern ARM_DRIVER_USART Driver_USART3;
+//extern ARM_DRIVER_CAN Driver_CAN2;
+void TacheModule(void const*argument);
+osThreadId ID_TacheModule;
+osThreadDef(TacheModule,osPriorityNormal,1,0);
+//void CANthreadR(void const*argument);
+//osThreadId id_CANthreadR;
+//osThreadDef(CANthreadR,osPriorityNormal,1,0);
 
-	extern ARM_DRIVER_USART Driver_USART2;
-	
-	void USART2_INIT(void)
+	void USART3_INIT(void)
 	{
-		Driver_USART2.Initialize(NULL);
-	Driver_USART2.PowerControl(ARM_POWER_FULL);
-	Driver_USART2.Control(ARM_USART_MODE_ASYNCHRONOUS|
+		Driver_USART3.Initialize(CallbackUART);
+	Driver_USART3.PowerControl(ARM_POWER_FULL);
+	Driver_USART3.Control(ARM_USART_MODE_ASYNCHRONOUS|
 												ARM_USART_DATA_BITS_8|
 												ARM_USART_STOP_BITS_1|
 												ARM_USART_PARITY_NONE|
 												ARM_USART_FLOW_CONTROL_NONE,
 												9600);
 	
-	Driver_USART2.Control(ARM_USART_CONTROL_TX,1);
-	Driver_USART2.Control(ARM_USART_CONTROL_RX,1);
+	Driver_USART3.Control(ARM_USART_CONTROL_TX,1);
+	Driver_USART3.Control(ARM_USART_CONTROL_RX,1);
 	}
-
+	/*
+void CAN2_INIT(void)
+{
+	Driver_CAN2.Initialize(NULL,CallbackCAN);
+	Driver_CAN2.PowerControl(ARM_POWER_FULL);
+	Driver_CAN2.SetMode(ARM_CAN_MODE_INITIALIZATION);
+	Driver_CAN2.SetBitrate(ARM_CAN_BITRATE_NOMINAL
+	,125000
+	,ARM_CAN_BIT_PROP_SEG(5U)|
+	ARM_CAN_BIT_PHASE_SEG1(1U)|
+	ARM_CAN_BIT_PHASE_SEG2(1U)|
+	ARM_CAN_BIT_SJW(1U)
+	);
+	//Driver_CAN2.ObjectConfigure(1,ARM_CAN_OBJ_TX);
+	Driver_CAN2.ObjectConfigure(0,ARM_CAN_OBJ_RX);
+	Driver_CAN2.SetMode(ARM_CAN_MODE_NORMAL);
+}
+*/
 
 /* Private functions ---------------------------------------------------------*/
 /**
+	
+	
   * @brief  Main program
   * @param  None
   * @retval None
   */
-int main(void)
-{
-char tabplay[10],tabvol[10],tabtrack[10],track=0x08;
-	int i;
+
 	
-short CHKplay,CHKvol,CHKtrack,CHKplayback;
+	void CallbackUART (uint32_t event)
+	{
+		if (event == ARM_USART_EVENT_SEND_COMPLETE )
+		{
+		osSignalSet(ID_TacheModule,0x01);
+	}
+}
+	/*
+	void CallbackCAN(uint32_t obj_idx, uint32_t event)
+{
+	if(event==ARM_CAN_EVENT_RECEIVE)
+	{
+		osSignalSet(id_CANthreadR,0x01);
+	}
+*/
+	int main(void)
+{
+
 	
   /* STM32F4xx HAL library initialization:
        - Configure the Flash prefetch, Flash preread and Buffer caches
@@ -145,90 +191,201 @@ short CHKplay,CHKvol,CHKtrack,CHKplayback;
   /* Initialize CMSIS-RTOS2 */
   osKernelInitialize ();
 	
-	//NVIC_SetPriority(USART2_IRQn,2);		// nécessaire ? (si LCD ?)
+	//NVIC_SetPriority(USART3_IRQn,2);		// nécessaire ? (si LCD ?)
 	
 	LED_Initialize ();
-	USART2_INIT();
+	USART3_INIT();
+	//CAN2_INIT();	
+	
 
   /* Create thread functions that start executing, 
   Example: osThreadNew(app_main, NULL, NULL); */
 	
-  /* Start thread execution */
+	ID_TacheModule = osThreadCreate(osThread(TacheModule),NULL);
+  //	id_CANthreadR = osThreadCreate(osThread(CANthreadR),NULL);
+	/* Start thread execution */
   osKernelStart();
+	
 	//LED_On (3);
 //#endif
-	//osDelay(osWaitForever);
+	osDelay(osWaitForever);
 	
 
+}
 
-
-
-tabplay[0]=0x7E; // start
-tabplay[1]=0xFF; // VER (à compter)
-tabplay[2]=0x06; // LEN (à compter)
-tabplay[3]=0x0B; // CMD (à compter)
-tabplay[4]=0x00; // Feedback (à compter)
-tabplay[5]=0x00; // para 1 (à compter)
-tabplay[6]=0x00; // para 2 (à compter)
-CHKplay = 0x0000-tabplay[1]-tabplay[2]-tabplay[3]-tabplay[4]-tabplay[5]-tabplay[6];
-tabplay[7]= (CHKplay>>16) - 0x0001;
-tabplay[8]=  CHKplay;
-tabplay[9]=0xEF; // end
-
-tabvol[0]=0x7E; // start
-tabvol[1]=0xFF; // VER (à compter)
-tabvol[2]=0x06; // LEN (à compter)
-tabvol[3]=0x06; // CMD (à compter)
-tabvol[4]=0x00; // Feedback (à compter)
-tabvol[5]=0x00; // para 1 (à compter)
-tabvol[6]=0x10; // para 2 (à compter)
-CHKvol = 0x0000-tabvol[1]-tabvol[2]-tabvol[3]-tabvol[4]-tabvol[5]-tabvol[6];
-tabvol[7]= (CHKvol>>16) - 0x0001;
-tabvol[8]=  CHKvol;
-tabvol[9]=0xEF; // end
-
-
-
-tabtrack[0]=0x7E; // start
-tabtrack[1]=0xFF; // VER (à compter)
-tabtrack[2]=0x06; // LEN (à compter)
-tabtrack[3]=0x03; // CMD (à compter)
-tabtrack[4]=0x00; // Feedback (à compter)
-tabtrack[5]=0x00; // para 1 (à compter)
-tabtrack[6]=track; // para 2 (à compter)
-CHKtrack = 0x0000-tabtrack[1]-tabtrack[2]-tabtrack[3]-tabtrack[4]-tabtrack[5]-tabtrack[6];
-tabtrack[7]= (CHKtrack>>16) - 0x0001;
-tabtrack[8]=  CHKtrack;
-tabtrack[9]=0xEF; // end
-
-while(Driver_USART2.GetStatus().tx_busy==1);
-Driver_USART2.Send(tabvol,10);
-
-
-			while(Driver_USART2.GetStatus().tx_busy==1);
-		Driver_USART2.Send(tabplay,10);
-
-		while(Driver_USART2.GetStatus().tx_busy==1);
-Driver_USART2.Send(tabtrack,10);
-
-
-				
+void TacheModule(void const* argument)
+{
+	char tabplay[10],tabvol[10],tabtrack[10],tabtrack2[10],tabtrack3[10];
+	int situation;
 	
+	short CHKplay,CHKvol,CHKtrack,CHKtrack2,CHKtrack3;
+
+	situation = 0;
+	
+	tabplay[0]=0x7E; // start
+	tabplay[1]=0xFF; // VER (à compter)
+	tabplay[2]=0x06; // LEN (à compter)
+	tabplay[3]=0x0B; // CMD (à compter)
+	tabplay[4]=0x00; // Feedback (à compter)
+	tabplay[5]=0x00; // para 1 (à compter)
+	tabplay[6]=0x00; // para 2 (à compter)
+	CHKplay = 0x0000-tabplay[1]-tabplay[2]-tabplay[3]-tabplay[4]-tabplay[5]-tabplay[6];
+	tabplay[7]= (CHKplay>>16) - 0x0001;
+	tabplay[8]=  CHKplay;
+	tabplay[9]=0xEF; // end
+
+	tabvol[0]=0x7E; // start
+	tabvol[1]=0xFF; // VER (à compter)
+	tabvol[2]=0x06; // LEN (à compter)
+	tabvol[3]=0x06; // CMD (à compter)
+	tabvol[4]=0x00; // Feedback (à compter)
+	tabvol[5]=0x00; // para 1 (à compter)
+	tabvol[6]=0x10; // para 2 (à compter)
+	CHKvol = 0x0000-tabvol[1]-tabvol[2]-tabvol[3]-tabvol[4]-tabvol[5]-tabvol[6];
+	tabvol[7]= (CHKvol>>16) - 0x0001;
+	tabvol[8]=  CHKvol;
+	tabvol[9]=0xEF; // end
+
+	tabtrack[0]=0x7E; // start
+	tabtrack[1]=0xFF; // VER (à compter)
+	tabtrack[2]=0x06; // LEN (à compter)
+	tabtrack[3]=0x03; // CMD (à compter)
+	tabtrack[4]=0x00; // Feedback (à compter)
+	tabtrack[5]=0x00; // para 1 (à compter)
+	tabtrack[6]=0x04; // para 2 (à compter)
+	CHKtrack = 0x0000-tabtrack[1]-tabtrack[2]-tabtrack[3]-tabtrack[4]-tabtrack[5]-tabtrack[6];
+	tabtrack[7]= (CHKtrack>>16) - 0x0001;
+	tabtrack[8]=  CHKtrack;
+	tabtrack[9]=0xEF; // end
+
+	tabtrack2[0]=0x7E; // start
+	tabtrack2[1]=0xFF; // VER (à compter)
+	tabtrack2[2]=0x06; // LEN (à compter)
+	tabtrack2[3]=0x03; // CMD (à compter)
+	tabtrack2[4]=0x00; // Feedback (à compter)
+	tabtrack2[5]=0x00; // para 1 (à compter)
+	tabtrack2[6]=0x07; // para 2 (à compter)
+	CHKtrack2 = 0x0000-tabtrack2[1]-tabtrack2[2]-tabtrack2[3]-tabtrack2[4]-tabtrack2[5]-tabtrack2[6];
+	tabtrack2[7]= (CHKtrack2>>16) - 0x0001;
+	tabtrack2[8]=  CHKtrack2;
+	tabtrack2[9]=0xEF; // end
+
+	tabtrack3[0]=0x7E; // start
+	tabtrack3[1]=0xFF; // VER (à compter)
+	tabtrack3[2]=0x06; // LEN (à compter)
+	tabtrack3[3]=0x03; // CMD (à compter)
+	tabtrack3[4]=0x00; // Feedback (à compter)
+	tabtrack3[5]=0x00; // para 1 (à compter)
+	tabtrack3[6]=0x03; // para 2 (à compter)
+	CHKtrack3 = 0x0000-tabtrack3[1]-tabtrack3[2]-tabtrack3[3]-tabtrack3[4]-tabtrack3[5]-tabtrack3[6];
+	tabtrack3[7]= (CHKtrack3>>16) - 0x0001;
+	tabtrack3[8]=  CHKtrack3;
+	tabtrack3[9]=0xEF; // end
+
+	//while(Driver_USART3.GetStatus().tx_busy==1);
 		
+	Driver_USART3.Send(tabvol,10);
+	osSignalWait(0x01,osWaitForever);
+
+	//while(Driver_USART3.GetStatus().tx_busy==1);
+
+	Driver_USART3.Send(tabplay,10);
+	osSignalWait(0x01,osWaitForever);
+
+	//while(Driver_USART3.GetStatus().tx_busy==1);
+
+		//Driver_USART3.Send(tabtrack,10);
+			//	osSignalWait(0x01,osWaitForever);
+				
+	situation = telemetre;
+	
+LED_On(4);
 		
   /* Infinite loop */
   while (1)
   {
-
-
-
-	
-			
+LED_On(1);
+		//	LED_Off(3);
+			 if (situation == cle)
+			{/*
+				tabplay[3]=0x11; 
+				Driver_USART3.Send(tabplay,10);
+				osSignalWait(0x01,osWaitForever);
 				
+				tabplay[3]=0x0B; 
+				Driver_USART3.Send(tabplay,10);
+				osSignalWait(0x01,osWaitForever);
+				*/
+				
+				//tabtrack[6] = 0x02;
+							LED_On(3);
+			LED_Off(1);
+				Driver_USART3.Send(tabtrack,10);
+				osSignalWait(0x01,osWaitForever);
+				osDelay(5000);
+				situation = 0;
+				LED_On(2);
+		
+			}
+			else if (situation == telemetre)
+			{
+				/*			tabplay[3]=0x11; 
+			Driver_USART3.Send(tabplay,10);
+			osSignalWait(0x01,osWaitForever);
+				
+				tabplay[3]=0x0B; 
+				Driver_USART3.Send(tabplay,10);
+				osSignalWait(0x01,osWaitForever);
+				*/
+				
+				//tabtrack[6] =0x07;
+					
+				Driver_USART3.Send(tabtrack2,10);
+				osSignalWait(0x01,osWaitForever);
+				osDelay(5000);
+				situation = 0;
+				
+			}
+			else if (situation ==clignotant)
+			{/*
+							tabplay[3]=0x11; 
+				Driver_USART3.Send(tabplay,10);
+				osSignalWait(0x01,osWaitForever);
+				
+				tabplay[3]=0x0B; 
+				Driver_USART3.Send(tabplay,10);
+				osSignalWait(0x01,osWaitForever);
+				*/
+				//tabtrack[6] =0x03;
+							
+				Driver_USART3.Send(tabtrack3,10);
+				osSignalWait(0x01,osWaitForever);
+				osDelay(5000);
+				situation = 0;
+				
+			}
+		}
+	}
 
-  }
+/*
+void CANthreadR(void const*argument)
+{
+	unsigned char data[2] = {0};
+
+  ARM_CAN_MSG_INFO rx_msg_info;
+	osEvent evt;
+	while(1)
+	{
+	  evt = osSignalWait(0x01,osWaitForever);
+		Driver_CAN2.MessageRead(0,&rx_msg_info,data,1);
+		
+		
+		situation = rx_msg_info.id;
+		
+	
+	}
 }
-
+*/
 
 /**
   * @brief  System Clock Configuration
@@ -343,3 +500,4 @@ void assert_failed(uint8_t* file, uint32_t line)
   */ 
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
+
