@@ -1,4 +1,3 @@
-
 /**
   ******************************************************************************
   * @file    Templates/Src/main.c 
@@ -43,6 +42,7 @@
 #include "cmsis_os.h"                   // ARM::CMSIS:RTOS:Keil RTX
 
 #include "Driver_USART.h"               // ::CMSIS Driver:USART
+#include "Driver_CAN.h"                 // ::CMSIS Driver:CAN
 
 #include "Board_LED.h"                  // ::Board Support:LED
 
@@ -87,6 +87,8 @@ uint32_t HAL_GetTick (void) {
   */
 
 /* Private typedef -----------------------------------------------------------*/
+extern ARM_DRIVER_USART Driver_USART2;
+extern ARM_DRIVER_CAN Driver_CAN2;
 /* Private define ------------------------------------------------------------*/
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
@@ -94,11 +96,23 @@ uint32_t HAL_GetTick (void) {
 static void SystemClock_Config(void);
 static void Error_Handler(void);
 
-	extern ARM_DRIVER_USART Driver_USART2;
-	
-	void USART2_INIT(void)
+void ActivUART(uint32_t event);
+void CallbackCAN(uint32_t obj_idx, uint32_t event);
+
+void TacheRFID(void const*argument);
+void CANthreadT(void const*argument);
+
+osThreadId ID_TacheRFID;
+osThreadDef(TacheRFID,osPriorityNormal,1,0);
+osThreadId id_CANthreadT;
+osThreadDef(CANthreadT,osPriorityNormal,1,0);
+
+
+/* Private functions ---------------------------------------------------------*/
+
+void USART2_INIT(void)
 	{
-		Driver_USART2.Initialize(NULL);
+	Driver_USART2.Initialize(ActivUART);
 	Driver_USART2.PowerControl(ARM_POWER_FULL);
 	Driver_USART2.Control(ARM_USART_MODE_ASYNCHRONOUS|
 												ARM_USART_DATA_BITS_8|
@@ -111,8 +125,23 @@ static void Error_Handler(void);
 	Driver_USART2.Control(ARM_USART_CONTROL_RX,1);
 	}
 
+void CAN2_INIT(void)
+{
+	Driver_CAN2.Initialize(NULL,CallbackCAN);
+	Driver_CAN2.PowerControl(ARM_POWER_FULL);
+	Driver_CAN2.SetMode(ARM_CAN_MODE_INITIALIZATION);
+	Driver_CAN2.SetBitrate(ARM_CAN_BITRATE_NOMINAL
+	,125000
+	,ARM_CAN_BIT_PROP_SEG(5U)|
+	ARM_CAN_BIT_PHASE_SEG1(1U)|
+	ARM_CAN_BIT_PHASE_SEG2(1U)|
+	ARM_CAN_BIT_SJW(1U)
+	);
+	Driver_CAN2.ObjectConfigure(1,ARM_CAN_OBJ_TX);
+	//Driver_CAN2.ObjectConfigure(0,ARM_CAN_OBJ_RX);
+	Driver_CAN2.SetMode(ARM_CAN_MODE_NORMAL);
+}
 
-/* Private functions ---------------------------------------------------------*/
 /**
   * @brief  Main program
   * @param  None
@@ -120,9 +149,7 @@ static void Error_Handler(void);
   */
 int main(void)
 {
-char cle[14],test[14];
-	int j,a;
-	bool ok;
+
   /* STM32F4xx HAL library initialization:
        - Configure the Flash prefetch, Flash preread and Buffer caches
        - Systick timer is configured by default as source of time base, but user 
@@ -139,6 +166,8 @@ char cle[14],test[14];
   SystemCoreClockUpdate();
 
   /* Add your application code here
+	
+	
      */
 	//#ifdef RTE_CMSIS_RTOS2
   /* Initialize CMSIS-RTOS2 */
@@ -148,63 +177,105 @@ char cle[14],test[14];
 	
 	LED_Initialize ();
 	USART2_INIT();
-
+	CAN2_INIT();
   /* Create thread functions that start executing, 
   Example: osThreadNew(app_main, NULL, NULL); */
+	
+	ID_TacheRFID = osThreadCreate(osThread(TacheRFID),NULL);
+	id_CANthreadT = osThreadCreate(osThread(CANthreadT),NULL);
 	
   /* Start thread execution */
   osKernelStart();
 	//LED_On (3);
 //#endif
-	//osDelay(osWaitForever);
-		cle[1]='0';
-		cle[2]='8';
-		cle[3]='0';
-		cle[4]='0';
-		cle[5]='8';
-		cle[6]='C';
-		cle[7]='2';
-		cle[8]='3';
-		cle[9]='E';
-		cle[10]='9';
-		cle[11]='4';
-		cle[12]='E';
+	osDelay(osWaitForever);
+	
+}
+
+void ActivUART(uint32_t event)
+{
+	if (event == ARM_USART_EVENT_RECEIVE_COMPLETE )
+		{
+		osSignalSet(ID_TacheRFID,0x01);
+}
+}
+void CallbackCAN(uint32_t obj_idx, uint32_t event)
+{
+	if(event==ARM_CAN_EVENT_SEND_COMPLETE)
+	{
+		osSignalSet(id_CANthreadT,0x01);
+	}
+}
+
+void TacheRFID(void const*argument)
+{
+	char cle[14],test[14];
+	int j;
+	bool ok;
+	cle[1]='0';
+	cle[2]='8';
+	cle[3]='0';
+	cle[4]='0';
+	cle[5]='8';
+	cle[6]='C';
+	cle[7]='2';
+	cle[8]='3';
+	cle[9]='E';
+	cle[10]='9';
+	cle[11]='4';
+	cle[12]='E';
   /* Infinite loop */
   while (1)
   {
 		ok = true;
 		
 		Driver_USART2.Receive(test,14);
-		while(Driver_USART2.GetRxCount()<1);
-				
+		
+		//while(Driver_USART2.GetRxCount()<1);
+		osSignalWait(0x01,osWaitForever);
+		
 		for(j=1;j<13;j++)
 		{
-			if(cle[j]==test[j])
+			if(cle[j]!=test[j])
 				{ 
-				
-				}
-			else
-				{
-					
 					ok = false;
 				}	
 		}
 		
+
+		
 		if(ok == true)
 		{
-			LED_Off (3);
-			LED_On (1);
+			osSignalSet(id_CANthreadT,0x02);
+			LED_On(1);
+			LED_Off(3);
 		}
 		else
 		{
-			LED_Off (1);
-			LED_On (3);
-		
+			LED_On(3);
+			LED_Off(1);
 		}
 		
   }
 }
-
+void CANthreadT(void const*argument)
+{
+	unsigned char data[2] = {0};
+	
+  ARM_CAN_MSG_INFO tx_msg_info;
+	
+	while(1)
+	{
+		osSignalWait(0x02,osWaitForever);
+		LED_On(2);
+		LED_Off(4);
+		tx_msg_info.id = 0x5F8;
+		tx_msg_info.rtr = 0;
+		data[0]=0x01;
+		Driver_CAN2.MessageSend(1,&tx_msg_info,data,1);
+		osSignalWait(0x01,osWaitForever);
+	}
+}
 
 /**
   * @brief  System Clock Configuration
