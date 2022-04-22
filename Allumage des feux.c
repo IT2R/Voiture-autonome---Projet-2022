@@ -56,10 +56,12 @@
 #endif
 
 #define nbLed 16
-#define seuil 2000
+#define seuil 1500
 
 #define clignotantDroite 0x01
 #define clignotantGauche 0x02
+#define clignotantGaucheChennilard 0x03
+#define clignotantDroitChennilard 0x04
 
 char Data_LED[4+nbLed*4+(2+(int)((nbLed-1)/16))];
 
@@ -169,19 +171,27 @@ void LED (void const* argument) {
 		if(HAL_ADC_PollForConversion(&myADC2Handle, osWaitForever) == 0x00U) //conversion complete
 		{
 			Adc_value  = HAL_ADC_GetValue(&myADC2Handle);
+			if ( Adc_value > 3000)
+			{
+				LED_On(0);
+				remplirTabLED(Data_LED,1,4,4,0,0,0); //LED 1-4
+				remplirTabLED(Data_LED,9,4,4,0,0,0); //LED 9-12
+
+				Driver_SPI1.Send(Data_LED,sizeof(Data_LED)/sizeof(Data_LED[0]));
+			}
 			if ( Adc_value > seuil)
 			{
 				LED_On(0);
-				remplirTabLED(Data_LED,1,4,2,0,0,0);
-				remplirTabLED(Data_LED,9,4,2,0,0,0);
+				remplirTabLED(Data_LED,1,4,2,0,0,0); //LED 1-4
+				remplirTabLED(Data_LED,9,4,2,0,0,0); //LED 9-12
 
 				Driver_SPI1.Send(Data_LED,sizeof(Data_LED)/sizeof(Data_LED[0]));
 			}
 			else 
 			{
 				LED_Off(0);
-				remplirTabLED(Data_LED ,1,4,8,127,127,127);
-				remplirTabLED(Data_LED ,9,4,8,127,127,127);
+				remplirTabLED(Data_LED ,1,4,8,127,127,127); //LED 1-4
+				remplirTabLED(Data_LED ,9,4,8,127,127,127); //LED 9-12
 				Driver_SPI1.Send(Data_LED,sizeof(Data_LED)/sizeof(Data_LED[0]));
 			}
 				
@@ -223,21 +233,48 @@ void Clignotant (void const * argument)
 		//nb_data = rx_msg_info.dlc
 		if (nb_data == clignotantDroite)
 		{
-			remplirTabLED(Data_LED,7,6,4,0,0,127);
+			remplirTabLED(Data_LED,13,4,4,127,0,0); // LED 13-16
+			Driver_SPI1.Send(Data_LED,sizeof(Data_LED)/sizeof(Data_LED[0]));
 			osDelay(750);
-			remplirTabLED(Data_LED,7,6,0,0,0,0);
-			osDelay(750);
+			remplirTabLED(Data_LED,13,4,0,0,0,0);   // LED 13-16
+			Driver_SPI1.Send(Data_LED,sizeof(Data_LED)/sizeof(Data_LED[0]));
+			osDelay(650);
+			nb_data = clignotantGauche;
 		}
 		else if (nb_data == clignotantGauche)
 		{
-			remplirTabLED(Data_LED,5,4,4,127,0,0);
+			
+			remplirTabLED(Data_LED,5,4,4,127,0,0); // LED 5-8
 			Driver_SPI1.Send(Data_LED,sizeof(Data_LED)/sizeof(Data_LED[0]));
 			osDelay(750);
-			LED_On(2);
-			remplirTabLED(Data_LED,5,4,4,0,0,0);
+			remplirTabLED(Data_LED,5,4,4,0,0,0);   // LED 5-8
 			Driver_SPI1.Send(Data_LED,sizeof(Data_LED)/sizeof(Data_LED[0]));
 			osDelay(600);
-			LED_On(3);
+			nb_data = clignotantDroitChennilard;
+
+		}
+		else if (nb_data == clignotantGaucheChennilard)
+		{
+			for (i = 4; i > 0; i--) {
+				remplirTabLED(Data_LED,4+i,1,4,127,0,0); // LED 5~8
+				Driver_SPI1.Send(Data_LED,sizeof(Data_LED)/sizeof(Data_LED[0]));
+				osDelay(250);
+				remplirTabLED(Data_LED,4+i,1,4,0,0,0);   // LED 5~8
+				
+			}
+			nb_data = clignotantDroite;
+		}
+		
+		else if (nb_data == clignotantDroitChennilard)
+		{
+			for (i = 0; i < 4; i++) {
+				remplirTabLED(Data_LED,13+i,1,4,127,0,0); // LED 5~8
+				Driver_SPI1.Send(Data_LED,sizeof(Data_LED)/sizeof(Data_LED[0]));
+				osDelay(250);
+				remplirTabLED(Data_LED,13+i,1,4,0,0,0);   // LED 5~8
+				
+			}
+			nb_data = clignotantGaucheChennilard;
 		}
 	}
 }
